@@ -41,8 +41,7 @@ accidental start-code byte patterns.
 & $py code\train_two_stage.py `
   --packet-root artifacts\rebuild_packets `
   --label-root artifacts\rebuild_labels `
-  --output-root artifacts\rebuild_models `
-  --ood-app xhs
+  --output-root artifacts\rebuild_models
 
 & $py code\predict_two_stage.py `
   --packet-root artifacts\rebuild_packets `
@@ -54,6 +53,20 @@ accidental start-code byte patterns.
   --label-root artifacts\rebuild_labels `
   --minimum-packet-iou 0.9 `
   --output-path artifacts\rebuild_predictions\iframe_iou90_summary.json
+```
+
+By default these commands use
+`code/config/splits_recovered_20260727_bidir.json`, which restores the previous
+primary split:
+
+- `development`: `douyin_primary`, `pinduoduo_primary`, `wechat_primary`,
+  `wechat_secondary`
+- `final_app_ood`: `xiaohongshu_primary`, `xiaohongshu_secondary`
+
+Run this before training to verify the restored split against the current pcaps:
+
+```powershell
+& $py code\verify_recovered_split.py --data-root data --fail-on-missing
 ```
 
 For quick validation:

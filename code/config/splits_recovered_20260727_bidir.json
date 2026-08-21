@@ -1,0 +1,159 @@
+{
+  "split_id": "recovered_20260727_bidir",
+  "recovered_at": "2026-08-21",
+  "description": "Recovered primary split from valid prepared_20260727_bidir summary.json files. The original manifests/splits.json file was recovered as null bytes, so this file records the split reconstructed from surviving summaries and current exact-size pcap files.",
+  "roles": {
+    "development": {
+      "description": "Training/tuning side used by the historical prepared datasets."
+    },
+    "final_app_ood": {
+      "description": "Application-OOD final test side.",
+      "ood_application": "xiaohongshu"
+    }
+  },
+  "expected_prepared_summaries": {
+    "frame_oracle": {
+      "source_file_count": 6,
+      "feature_count": 43,
+      "labeled_rows": 313468,
+      "positive_rows": 7891,
+      "negative_rows": 305577,
+      "development_rows": 152782,
+      "final_app_ood_rows": 160686
+    },
+    "burst_20ms": {
+      "source_file_count": 6,
+      "feature_count": 43,
+      "labeled_rows": 192913,
+      "ambiguous_excluded": 59,
+      "positive_rows": 7405,
+      "negative_rows": 185508,
+      "development_rows": 100082,
+      "final_app_ood_rows": 92831
+    },
+    "early_10us": {
+      "source_file_count": 6,
+      "feature_count": 43,
+      "labeled_rows": 3564949,
+      "ambiguous_excluded": 183,
+      "positive_rows": 9479,
+      "negative_rows": 3555470,
+      "development_rows": 1511795,
+      "final_app_ood_rows": 2053154
+    }
+  },
+  "captures": [
+    {
+      "capture_id": "douyin_primary",
+      "application": "douyin",
+      "role": "development",
+      "pcap_filename": "livestreaming_dy.pcapng",
+      "expected_size_bytes": 664257864,
+      "aliases": [
+        "livestreaming_dy"
+      ],
+      "notes": "Exact-size current pcap restored from the Douyin live primary capture."
+    },
+    {
+      "capture_id": "pinduoduo_primary",
+      "application": "pinduoduo",
+      "role": "development",
+      "pcap_filename": "livestreaming_pdd.pcapng",
+      "expected_size_bytes": 680762744,
+      "aliases": [
+        "livestreaming_pdd"
+      ],
+      "notes": "Exact-size current pcap restored from the Pinduoduo live primary capture."
+    },
+    {
+      "capture_id": "wechat_primary",
+      "application": "wechat",
+      "role": "development",
+      "pcap_filename": "livstreaming_wechat.pcapng",
+      "expected_size_bytes": 560649180,
+      "aliases": [
+        "livstreaming_wechat",
+        "livestreaming_wx",
+        "live_streaming_wechat"
+      ],
+      "notes": "Exact-size current pcap corresponds to the WeChat live train/primary capture."
+    },
+    {
+      "capture_id": "wechat_secondary",
+      "application": "wechat",
+      "role": "development",
+      "pcap_filename": "livstreaming_wx_test.pcapng",
+      "expected_size_bytes": 363084808,
+      "aliases": [
+        "livstreaming_wx_test",
+        "livestreaming_wx_test",
+        "livestreming_wx"
+      ],
+      "notes": "Exact-size current pcap corresponds to the WeChat live test/secondary capture used on the development side."
+    },
+    {
+      "capture_id": "xiaohongshu_primary",
+      "application": "xiaohongshu",
+      "role": "final_app_ood",
+      "pcap_filename": "livstreaming_xhs.pcapng",
+      "expected_size_bytes": 1453243908,
+      "aliases": [
+        "livstreaming_xhs"
+      ],
+      "notes": "Exact-size current pcap from Xiaohongshu live. The role is certain from recovered summaries; primary/secondary ordering is reconstructed from current filenames and source paths."
+    },
+    {
+      "capture_id": "xiaohongshu_secondary",
+      "application": "xiaohongshu",
+      "role": "final_app_ood",
+      "pcap_filename": "livstreaming_xhs_test.pcapng",
+      "expected_size_bytes": 1383029884,
+      "aliases": [
+        "livstreaming_xhs_test",
+        "livestreaming_xhs"
+      ],
+      "notes": "Exact-size current pcap from the Xiaohongshu continuation/secondary live capture."
+    }
+  ],
+  "excluded_current_captures": [
+    {
+      "pcap_filename": "livestreaming_dy_1.pcapng",
+      "reason": "Not present in recovered prepared_20260727_bidir capture list."
+    },
+    {
+      "pcap_filename": "livestreaming_mt.pcapng",
+      "reason": "Meituan live capture was not part of the recovered primary split."
+    },
+    {
+      "pcap_filename": "livestreaming_mt_1.pcapng",
+      "reason": "Meituan live capture was not part of the recovered primary split."
+    },
+    {
+      "pcap_filename": "livestreaming_tb.pcapng",
+      "reason": "Taobao was used separately as a target-domain/smoke probe, not final_app_ood."
+    },
+    {
+      "pcap_filename": "livestreaming_tb_1.pcapng",
+      "reason": "Taobao secondary RTP was used separately as a target-domain/smoke probe."
+    },
+    {
+      "pcap_filename": "livstreaming_jd.pcapng",
+      "reason": "JD live capture was not part of the recovered primary split."
+    }
+  ],
+  "probe_captures": [
+    {
+      "capture_id": "taobao_secondary_rtp",
+      "application": "taobao",
+      "role": "target_domain_probe",
+      "pcap_filename": "livestreaming_tb_1.pcapng",
+      "expected_size_bytes": 566151200,
+      "notes": "Historical reports referenced Taobao RTP as a separate smoke/target-domain probe, not as final_app_ood."
+    }
+  ],
+  "source_evidence": [
+    "F:/XMR_recovery_20260821/all_small/archive/cleanup_20260821/artifacts_history/prepared_20260727_bidir/dataset/frame_oracle/summary.json",
+    "F:/XMR_recovery_20260821/all_small/archive/cleanup_20260821/artifacts_history/prepared_20260727_bidir/dataset/burst_20ms/summary.json",
+    "F:/XMR_recovery_20260821/all_small/archive/cleanup_20260821/artifacts_history/prepared_20260728_early/dataset/early_10us/summary.json"
+  ]
+}

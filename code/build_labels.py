@@ -7,6 +7,7 @@ import pandas as pd
 
 from iframe_detector.features import select_media_flows
 from iframe_detector.packets import load_dataframe, save_dataframe, write_json
+from iframe_detector.splits import DEFAULT_SPLIT_CONFIG_PATH, canonicalize_capture_columns, load_split_config
 from iframe_detector.video import derive_labels_for_flow, labels_to_dataframe
 
 
@@ -16,6 +17,7 @@ def main() -> None:
     ap.add_argument("--output-root", type=Path, default=Path("artifacts/rebuild_labels"))
     ap.add_argument("--top-flows", type=int, default=5)
     ap.add_argument("--min-downlink-bytes", type=int, default=64_000)
+    ap.add_argument("--split-config", type=Path, default=DEFAULT_SPLIT_CONFIG_PATH)
     ap.add_argument(
         "--allow-weak-annexb",
         action="store_true",
@@ -23,11 +25,14 @@ def main() -> None:
     )
     args = ap.parse_args()
 
+    split_config = load_split_config(args.split_config)
     packet_paths = sorted((args.packet_root / "packets").glob("*.packets.csv.gz"))
     all_label_frames = []
     summaries = []
     for packet_path in packet_paths:
-        packets = load_dataframe(packet_path)
+        packets = canonicalize_capture_columns(load_dataframe(packet_path), split_config, drop_unassigned=True)
+        if packets.empty:
+            continue
         capture_id = str(packets["capture_id"].iloc[0])
         application = str(packets["application"].iloc[0])
         media = select_media_flows(packets, args.top_flows, args.min_downlink_bytes)
@@ -55,12 +60,13 @@ def main() -> None:
                 "labeled_frame_count": int(len(out_df)),
                 "keyframe_count": int(out_df["is_keyframe"].sum()) if not out_df.empty else 0,
                 "label_path": str(out_path),
+                "split_role": str(packets["split_role"].iloc[0]) if "split_role" in packets.columns else None,
             }
         )
         print(f"labels {capture_id}: {len(out_df)} frames")
     all_df = pd.concat(all_label_frames, ignore_index=True) if all_label_frames else pd.DataFrame()
     save_dataframe(all_df, args.output_root / "all_frames.csv.gz")
-    write_json({"captures": summaries}, args.output_root / "label_summary.json")
+    write_json({"split_id": split_config.get("split_id") if split_config else None, "captures": summaries}, args.output_root / "label_summary.json")
 
 
 if __name__ == "__main__":

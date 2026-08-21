@@ -12,6 +12,8 @@ from typing import Iterable, Iterator
 
 import pandas as pd
 
+from .splits import resolve_capture_record
+
 
 TSHARK_FIELDS = [
     "frame.number",
@@ -60,11 +62,15 @@ def infer_application(name: str) -> str:
     return "unknown"
 
 
-def discover_captures(data_root: Path) -> list[CaptureSpec]:
+def discover_captures(data_root: Path, split_config: dict | None = None, include_unassigned: bool = True) -> list[CaptureSpec]:
     specs: list[CaptureSpec] = []
     for path in sorted(data_root.glob("*.pcapng")):
-        capture_id = path.stem
-        specs.append(CaptureSpec(capture_id, infer_application(path.name), path))
+        record = resolve_capture_record(path.name, split_config)
+        if record:
+            specs.append(CaptureSpec(str(record["capture_id"]), str(record["application"]), path))
+        elif include_unassigned:
+            capture_id = path.stem
+            specs.append(CaptureSpec(capture_id, infer_application(path.name), path))
     return specs
 
 

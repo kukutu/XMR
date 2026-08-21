@@ -153,11 +153,13 @@ def build_frame_training_table(packet_df: pd.DataFrame, label_df: pd.DataFrame) 
     rows = []
     if label_df.empty:
         return pd.DataFrame()
-    flow_lookup = {k: g.copy() for k, g in packet_df.groupby("flow_key")}
+    lookup_cols = ["capture_id", "flow_key"] if "capture_id" in packet_df.columns and "capture_id" in label_df.columns else ["flow_key"]
+    flow_lookup = {k: g.copy() for k, g in packet_df.groupby(lookup_cols)}
     for row in label_df.itertuples(index=False):
         packets = parse_packet_numbers(getattr(row, "packet_numbers"))
         flow_key = getattr(row, "flow_key")
-        flow = flow_lookup.get(flow_key)
+        key = (getattr(row, "capture_id"), flow_key) if len(lookup_cols) == 2 else flow_key
+        flow = flow_lookup.get(key)
         if flow is None or not packets:
             continue
         feat = frame_features_from_packets(flow, packets)

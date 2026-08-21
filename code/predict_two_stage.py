@@ -8,6 +8,7 @@ import pandas as pd
 from iframe_detector.features import frame_features_from_packets, pairwise_gap_features
 from iframe_detector.models import load_model
 from iframe_detector.packets import load_dataframe, save_dataframe, write_json
+from iframe_detector.splits import DEFAULT_SPLIT_CONFIG_PATH, canonicalize_capture_columns, load_split_config
 
 
 def reconstruct_frames(
@@ -105,8 +106,10 @@ def main() -> None:
     ap.add_argument("--output-root", type=Path, default=Path("artifacts/rebuild_predictions"))
     ap.add_argument("--capture-id", default=None)
     ap.add_argument("--iframe-threshold", type=float, default=None)
+    ap.add_argument("--split-config", type=Path, default=DEFAULT_SPLIT_CONFIG_PATH)
     args = ap.parse_args()
 
+    split_config = load_split_config(args.split_config)
     packet_paths = sorted((args.packet_root / "packets").glob("*.packets.csv.gz"))
     frames = []
     for path in packet_paths:
@@ -114,6 +117,7 @@ def main() -> None:
             continue
         frames.append(load_dataframe(path))
     packets = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    packets = canonicalize_capture_columns(packets, split_config, drop_unassigned=bool(split_config))
     if packets.empty:
         raise SystemExit("no packet tables found")
     summary = score_reconstructed_frames(packets, args.model_root, args.output_root, args.iframe_threshold)
@@ -122,4 +126,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
