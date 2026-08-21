@@ -1,0 +1,15 @@
+.agents/
+.codex/
+.git_corrupt_pre_rebuild_*/
+archive/
+artifacts/
+data/
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
+~$*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
