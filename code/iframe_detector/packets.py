@@ -35,6 +35,19 @@ TSHARK_FIELDS = [
     "_ws.col.Protocol",
 ]
 
+TRAFFIC_FEATURE_COLUMNS = {
+    "packet_number",
+    "time_epoch",
+    "payload_len",
+    "is_uplink",
+    "is_downlink",
+    "flow_key",
+    "capture_id",
+    "application",
+    "split_role",
+    "split_id",
+}
+
 
 @dataclass(frozen=True)
 class CaptureSpec:
@@ -208,10 +221,14 @@ def save_dataframe(df: pd.DataFrame, path: Path) -> None:
         df.to_csv(path, index=False)
 
 
-def load_dataframe(path: Path) -> pd.DataFrame:
+def load_dataframe(path: Path, **kwargs) -> pd.DataFrame:
     if path.suffix == ".gz":
-        return pd.read_csv(path, compression="gzip")
-    return pd.read_csv(path)
+        return pd.read_csv(path, compression="gzip", **kwargs)
+    return pd.read_csv(path, **kwargs)
+
+
+def load_packet_feature_dataframe(path: Path) -> pd.DataFrame:
+    return load_dataframe(path, usecols=lambda col: col in TRAFFIC_FEATURE_COLUMNS)
 
 
 def write_json(obj: object, path: Path) -> None:

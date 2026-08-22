@@ -58,11 +58,16 @@ def _safe_ratio(a: float, b: float) -> float:
     return float(a) / float(b) if b else 0.0
 
 
+def _safe_divide_array(a, b):
+    a_arr = np.asarray(a, dtype=float)
+    b_arr = np.asarray(b, dtype=float)
+    return np.divide(a_arr, b_arr, out=np.zeros_like(a_arr, dtype=float), where=b_arr != 0)
+
+
 def pairwise_gap_features(flow_df: pd.DataFrame, label_df: pd.DataFrame | None = None) -> pd.DataFrame:
     down = add_packet_context(flow_df).reset_index(drop=True)
     if len(down) < 2:
         return pd.DataFrame()
-    rows = []
     group_map = build_packet_group_map(label_df) if label_df is not None else {}
     all_df = flow_df.sort_values("time_epoch").reset_index(drop=True)
     all_times = all_df["time_epoch"].to_numpy()
@@ -72,57 +77,67 @@ def pairwise_gap_features(flow_df: pd.DataFrame, label_df: pd.DataFrame | None =
     uplink_byte_cumsum = np.concatenate([[0.0], np.cumsum(payloads * uplink_flags)])
     bidi_packet_cumsum = np.arange(len(all_df) + 1)
     bidi_byte_cumsum = np.concatenate([[0.0], np.cumsum(payloads)])
-    for i in range(len(down) - 1):
-        cur = down.iloc[i]
-        nxt = down.iloc[i + 1]
-        left = int(np.searchsorted(all_times, float(cur["time_epoch"]), side="right"))
-        right = int(np.searchsorted(all_times, float(nxt["time_epoch"]), side="right"))
-        uplink_packets = int(uplink_packet_cumsum[right] - uplink_packet_cumsum[left])
-        uplink_bytes = float(uplink_byte_cumsum[right] - uplink_byte_cumsum[left])
-        bidi_packets = int(bidi_packet_cumsum[right] - bidi_packet_cumsum[left])
-        bidi_bytes = float(bidi_byte_cumsum[right] - bidi_byte_cumsum[left])
-        row = {
-            "capture_id": cur.get("capture_id", ""),
-            "application": cur.get("application", ""),
-            "flow_key": cur["flow_key"],
-            "cur_packet_number": int(cur["packet_number"]),
-            "next_packet_number": int(nxt["packet_number"]),
-            "cur_payload": float(cur["payload_len"]),
-            "next_payload": float(nxt["payload_len"]),
-            "prev_payload": float(cur["prev_down_payload"]),
-            "gap_us": float((nxt["time_epoch"] - cur["time_epoch"]) * 1_000_000),
-            "next_to_cur_payload_ratio": _safe_ratio(nxt["payload_len"], cur["payload_len"]),
-            "cur_to_prev_payload_ratio": _safe_ratio(cur["payload_len"], cur["prev_down_payload"]),
-            "payload_delta": float(nxt["payload_len"] - cur["payload_len"]),
-            "payload_delta_abs": float(abs(nxt["payload_len"] - cur["payload_len"])),
-            "uplink_packets_between": uplink_packets,
-            "uplink_bytes_between": int(uplink_bytes),
-            "bidi_packets_between": bidi_packets,
-            "bidi_bytes_between": int(bidi_bytes),
-            "uplink_to_downlink_bytes_ratio": _safe_ratio(uplink_bytes, cur["payload_len"] + nxt["payload_len"]),
+    cur = down.iloc[:-1].reset_index(drop=True)
+    nxt = down.iloc[1:].reset_index(drop=True)
+    cur_time = cur["time_epoch"].astype(float).to_numpy()
+    nxt_time = nxt["time_epoch"].astype(float).to_numpy()
+    cur_payload = cur["payload_len"].astype(float).to_numpy()
+    nxt_payload = nxt["payload_len"].astype(float).to_numpy()
+    gap_us = (nxt_time - cur_time) * 1_000_000
+    left = np.searchsorted(all_times, cur_time, side="right")
+    right = np.searchsorted(all_times, nxt_time, side="right")
+    uplink_packets = uplink_packet_cumsum[right] - uplink_packet_cumsum[left]
+    uplink_bytes = uplink_byte_cumsum[right] - uplink_byte_cumsum[left]
+    bidi_packets = bidi_packet_cumsum[right] - bidi_packet_cumsum[left]
+    bidi_bytes = bidi_byte_cumsum[right] - bidi_byte_cumsum[left]
+    rows = pd.DataFrame(
+        {
+            "capture_id": cur["capture_id"].to_numpy() if "capture_id" in cur.columns else "",
+            "application": cur["application"].to_numpy() if "application" in cur.columns else "",
+            "flow_key": cur["flow_key"].to_numpy(),
+            "cur_packet_number": cur["packet_number"].astype(int).to_numpy(),
+            "next_packet_number": nxt["packet_number"].astype(int).to_numpy(),
+            "cur_payload": cur_payload,
+            "next_payload": nxt_payload,
+            "prev_payload": cur["prev_down_payload"].astype(float).to_numpy(),
+            "gap_us": gap_us,
+            "next_to_cur_payload_ratio": _safe_divide_array(nxt_payload, cur_payload),
+            "cur_to_prev_payload_ratio": _safe_divide_array(cur_payload, cur["prev_down_payload"].astype(float).to_numpy()),
+            "payload_delta": nxt_payload - cur_payload,
+            "payload_delta_abs": np.abs(nxt_payload - cur_payload),
+            "uplink_packets_between": uplink_packets.astype(int),
+            "uplink_bytes_between": uplink_bytes.astype(int),
+            "bidi_packets_between": bidi_packets.astype(int),
+            "bidi_bytes_between": bidi_bytes.astype(int),
+            "uplink_to_downlink_bytes_ratio": _safe_divide_array(uplink_bytes, cur_payload + nxt_payload),
         }
-        for w in ROLL_WINDOWS:
-            mean = float(cur[f"roll{w}_payload_mean"])
-            iat_mean = float(cur[f"roll{w}_iat_mean_us"])
-            row[f"roll{w}_payload_mean"] = mean
-            row[f"roll{w}_payload_max"] = float(cur[f"roll{w}_payload_max"])
-            row[f"roll{w}_payload_std"] = float(cur[f"roll{w}_payload_std"])
-            row[f"roll{w}_iat_mean_us"] = iat_mean
-            row[f"roll{w}_iat_max_us"] = float(cur[f"roll{w}_iat_max_us"])
-            row[f"cur_to_roll{w}_payload_mean_ratio"] = _safe_ratio(cur["payload_len"], mean)
-            row[f"next_to_roll{w}_payload_mean_ratio"] = _safe_ratio(nxt["payload_len"], mean)
-            row[f"gap_to_roll{w}_iat_mean_ratio"] = _safe_ratio(row["gap_us"], iat_mean)
-        if group_map:
-            g1 = group_map.get(int(cur["packet_number"]), 0)
-            g2 = group_map.get(int(nxt["packet_number"]), 0)
-            row["label_boundary"] = int(g1 > 0 and g2 > 0 and g1 != g2)
-            row["label_known"] = int(g1 > 0 and g2 > 0)
-        rows.append(row)
-    return pd.DataFrame(rows)
+    )
+    for w in ROLL_WINDOWS:
+        mean = cur[f"roll{w}_payload_mean"].astype(float).to_numpy()
+        iat_mean = cur[f"roll{w}_iat_mean_us"].astype(float).to_numpy()
+        rows[f"roll{w}_payload_mean"] = mean
+        rows[f"roll{w}_payload_max"] = cur[f"roll{w}_payload_max"].astype(float).to_numpy()
+        rows[f"roll{w}_payload_std"] = cur[f"roll{w}_payload_std"].astype(float).to_numpy()
+        rows[f"roll{w}_iat_mean_us"] = iat_mean
+        rows[f"roll{w}_iat_max_us"] = cur[f"roll{w}_iat_max_us"].astype(float).to_numpy()
+        rows[f"cur_to_roll{w}_payload_mean_ratio"] = _safe_divide_array(cur_payload, mean)
+        rows[f"next_to_roll{w}_payload_mean_ratio"] = _safe_divide_array(nxt_payload, mean)
+        rows[f"gap_to_roll{w}_iat_mean_ratio"] = _safe_divide_array(gap_us, iat_mean)
+    if group_map:
+        g1 = cur["packet_number"].map(group_map).fillna(0).astype(int).to_numpy()
+        g2 = nxt["packet_number"].map(group_map).fillna(0).astype(int).to_numpy()
+        rows["label_boundary"] = ((g1 > 0) & (g2 > 0) & (g1 != g2)).astype(int)
+        rows["label_known"] = ((g1 > 0) & (g2 > 0)).astype(int)
+    return rows
 
 
 def frame_features_from_packets(flow_df: pd.DataFrame, packet_numbers: list[int], prefix: str = "") -> dict[str, float]:
-    pkt = flow_df[flow_df["packet_number"].isin(packet_numbers)].sort_values("time_epoch")
+    if flow_df.index.name == "packet_number":
+        ordered = list(dict.fromkeys(int(p) for p in packet_numbers))
+        existing = [p for p in ordered if p in flow_df.index]
+        pkt = flow_df.loc[existing].sort_values("time_epoch") if existing else pd.DataFrame()
+    else:
+        pkt = flow_df[flow_df["packet_number"].isin(packet_numbers)].sort_values("time_epoch")
     if pkt.empty:
         return {}
     down = pkt[pkt["is_downlink"].eq(True)]
@@ -154,7 +169,10 @@ def build_frame_training_table(packet_df: pd.DataFrame, label_df: pd.DataFrame) 
     if label_df.empty:
         return pd.DataFrame()
     lookup_cols = ["capture_id", "flow_key"] if "capture_id" in packet_df.columns and "capture_id" in label_df.columns else ["flow_key"]
-    flow_lookup = {k: g.copy() for k, g in packet_df.groupby(lookup_cols)}
+    flow_lookup = {
+        k: g.copy().set_index("packet_number", drop=False)
+        for k, g in packet_df.groupby(lookup_cols)
+    }
     for row in label_df.itertuples(index=False):
         packets = parse_packet_numbers(getattr(row, "packet_numbers"))
         flow_key = getattr(row, "flow_key")
@@ -187,11 +205,13 @@ def build_frame_training_table(packet_df: pd.DataFrame, label_df: pd.DataFrame) 
         "duration_us",
         "bytes_per_us",
     ]
-    df = df.sort_values(["flow_key", "frame_index"]).reset_index(drop=True)
+    history_group_cols = ["capture_id", "flow_key"] if "capture_id" in df.columns else ["flow_key"]
+    df = df.sort_values([*history_group_cols, "frame_index"]).reset_index(drop=True)
     for col in history_cols:
-        df[f"prev_{col}"] = df.groupby("flow_key")[col].shift(1).fillna(0)
-        df[f"roll5_{col}_mean"] = df.groupby("flow_key")[col].transform(lambda s: s.rolling(5, min_periods=1).mean())
-        df[f"{col}_to_prev_ratio"] = df.apply(lambda r: _safe_ratio(r[col], r[f"prev_{col}"]), axis=1)
+        grouped = df.groupby(history_group_cols)[col]
+        df[f"prev_{col}"] = grouped.shift(1).fillna(0)
+        df[f"roll5_{col}_mean"] = grouped.transform(lambda s: s.rolling(5, min_periods=1).mean())
+        df[f"{col}_to_prev_ratio"] = _safe_divide_array(df[col].to_numpy(), df[f"prev_{col}"].to_numpy())
     return df
 
 

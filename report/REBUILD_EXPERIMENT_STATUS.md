@@ -45,6 +45,38 @@ Default label policy is intentionally conservative:
 Annex-B weak labels can false-trigger on encrypted or random payloads and should
 not be treated as a reliable final metric.
 
+## Latest Strong-Only Two-Stage Scheme
+
+Current strict supervised training uses only strong parseable labels. Weak
+Annex-B labels are not used as training labels.
+
+The parsed frame table is split into two stage-specific label files:
+
+- `frame_packet_labels.csv.gz`: packet-to-frame membership labels for stage 1.
+- `frame_type_labels.csv.gz`: frame-level `is_keyframe` labels for stage 2.
+
+On the recovered full split, strong FLV labels are available only for
+`wechat_primary`:
+
+- 30,282 labeled frames.
+- 531 I-frame/keyframe labels.
+- No strong labels are available for the current `final_app_ood`
+  xiaohongshu captures.
+
+Therefore the strict strong-label pipeline cannot currently produce a valid
+final-app OOD metric. A temporal holdout on `wechat_primary` is used only to
+verify that the two-stage implementation is correct.
+
+Strong-only temporal validation at packet IoU >= 0.9:
+
+- Stage 1 frame reconstruction: precision 74.73%, recall 56.05%, F1 64.06%.
+- Stage 2 oracle I-frame classification: precision 98.32%, recall 99.25%,
+  F1 98.78%.
+- End-to-end raw: precision 68.41%, recall 93.41%, F1 78.98%.
+- End-to-end with GOP/NMS: precision 88.06%, recall 93.03%, F1 90.48%.
+
+The current scheme summary is tracked in `latest/README.md`.
+
 ## Smoke Test
 
 Smoke setup:

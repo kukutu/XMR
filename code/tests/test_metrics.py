@@ -1,6 +1,6 @@
 import unittest
 
-from iframe_detector.metrics import match_packet_sets, packet_iou
+from iframe_detector.metrics import match_packet_sets, match_packet_sets_grouped, packet_iou
 
 
 class MetricsTests(unittest.TestCase):
@@ -15,7 +15,14 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(m["false_positive_count"], 1)
         self.assertEqual(m["false_negative_count"], 1)
 
+    def test_match_packet_sets_grouped_does_not_cross_match(self):
+        pred = [("capture_a:flow", "p1", [1, 2, 3])]
+        truth = [("capture_b:flow", "t1", [1, 2, 3])]
+        m = match_packet_sets_grouped(pred, truth, minimum_iou=0.9)
+        self.assertEqual(m["true_positive_count"], 0)
+        self.assertEqual(m["false_positive_count"], 1)
+        self.assertEqual(m["false_negative_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
-

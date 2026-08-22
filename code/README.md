@@ -7,11 +7,13 @@ The pipeline is intentionally conservative:
 
 1. Export packet metadata and optional transport payloads with `tshark`.
 2. Group packets into flows and select likely media flows by downlink bytes.
-3. Reassemble parseable TCP payload streams and derive video frame labels from
-   FLV video tags when visible.
-4. Train a pairwise packet-gap boundary model for frame reconstruction.
-5. Train a frame-level I-frame classifier.
-6. Evaluate final predicted I-frame packet sets with packet IoU.
+3. Reassemble parseable TCP payload streams and derive strong video frame
+   labels from FLV video tags when visible.
+4. Split strong labels into stage-1 frame-packet labels and stage-2 frame-type
+   labels.
+5. Train a pairwise packet-gap boundary model for frame reconstruction.
+6. Train a frame-level I-frame classifier.
+7. Evaluate final predicted I-frame packet sets with packet IoU.
 
 Raw pcaps and generated artifacts are intentionally ignored by git.
 
@@ -30,6 +32,11 @@ $env:PYTHONPATH = 'D:\XMR\code'
 & $py code\build_labels.py `
   --packet-root artifacts\rebuild_packets `
   --output-root artifacts\rebuild_labels
+
+& $py code\prepare_two_stage_labels.py `
+  --input-label-root artifacts\rebuild_labels `
+  --output-root artifacts\rebuild_two_stage_labels `
+  --allow-label-source flv
 ```
 
 `build_labels.py` defaults to strong FLV labels only. Raw Annex-B start-code
@@ -40,7 +47,7 @@ accidental start-code byte patterns.
 ```powershell
 & $py code\train_two_stage.py `
   --packet-root artifacts\rebuild_packets `
-  --label-root artifacts\rebuild_labels `
+  --label-root artifacts\rebuild_two_stage_labels `
   --output-root artifacts\rebuild_models
 
 & $py code\predict_two_stage.py `
@@ -50,10 +57,16 @@ accidental start-code byte patterns.
 
 & $py code\evaluate_two_stage_iou.py `
   --prediction-root artifacts\rebuild_predictions `
-  --label-root artifacts\rebuild_labels `
+  --label-root artifacts\rebuild_two_stage_labels `
   --minimum-packet-iou 0.9 `
   --output-path artifacts\rebuild_predictions\iframe_iou90_summary.json
 ```
+
+`train_two_stage.py` reads `frame_packet_labels.csv.gz` for stage 1 and
+`frame_type_labels.csv.gz` for stage 2. If the recovered OOD split has no
+strong labels, `--label-split-fallback temporal` can be used for same-source
+pipeline validation, but that result should not be reported as OOD
+generalization.
 
 By default these commands use
 `code/config/splits_recovered_20260727_bidir.json`, which restores the previous
